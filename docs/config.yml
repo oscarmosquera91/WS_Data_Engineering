@@ -1,0 +1,47 @@
+# language: yaml
+connections:
+  warehouse:
+    logical_name: "warehouse_main"
+    fabric:
+      endpoint: "https://fabric.tenant.example/warehouse/MAIN"
+    # Configuración centralizada de conexiones
+    # Este archivo define los nombres lógicos de las conexiones y el mapping
+    # entre los endpoints usados en Microsoft Fabric y los equivalentes locales.
+    # Recomendación: no editar secretos directamente aquí; usar Key Vault o
+    # variables de entorno. Ver `docs/local-emulation.md` para levantamiento local.
+
+    default_env: "${ENV:-local}"  # valor por defecto si no se especifica ENV (local|fabric)
+
+    key_vault:
+      enabled: true
+      # Nombre del Key Vault a usar en entornos gestionados (opcional).
+      # En Fabric se recomienda usar Managed Identity para acceder a Key Vault.
+      name_env: "AZURE_KEY_VAULT_NAME"
+
+    connections:
+      warehouse:
+        logical_name: "warehouse_main"
+        description: "Almacén para reporting / modelos (logical warehouse)"
+        fabric:
+          # En runtime resolver: preferir una variable de entorno o referencia a Key Vault
+          endpoint_env: "FABRIC_WAREHOUSE_ENDPOINT"   # ej: https://{tenant}.fabric/... (inyectado en runtime)
+          secret_ref: "kv://warehouse-conn-string"    # esquema: kv://{secret-name} (resuelto por ConnectionManager)
+        local:
+          endpoint: "jdbc:sqlserver://localhost:1433;database=warehouse_local"
+          user_env: "LOCAL_WAREHOUSE_USER"
+          pass_env: "LOCAL_WAREHOUSE_PASS"
+
+      lakehouse:
+        logical_name: "lakehouse_main"
+        description: "Lakehouse (OneLake / Delta Lake)"
+        fabric:
+          endpoint_env: "FABRIC_LAKEHOUSE_ENDPOINT"   # ej: fabric://lakehouse/main o ruta REST según integración
+          secret_ref: "kv://lakehouse-mount-path"
+        local:
+          endpoint: "file://./local_lakehouse"
+          mount_path: "./local_lakehouse"
+
+    # Ejemplo de uso:
+    # - En local: export ENV=local y export LOCAL_WAREHOUSE_USER / LOCAL_WAREHOUSE_PASS
+    # - En Fabric: deployar con Managed Identity y configurar AZURE_KEY_VAULT_NAME
+    # Implementa un ConnectionManager que resuelva `endpoint_env` y `secret_ref`.

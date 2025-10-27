@@ -1,0 +1,68 @@
+services:
+  sqlserver:
+    image: mcr.microsoft.com/mssql/server:2019-latest
+    environment:
+      SA_PASSWORD: "Your_Strong!Passw0rd"
+      ACCEPT_EULA: "Y"
+    ports:
+      - "1433:1433"
+    healthcheck:
+      test: ["CMD-SHELL", " /opt/mssql-tools/bin/sqlcmd -S localhost -U sa -P Your_Strong!Passw0rd -Q \"SELECT 1\""]
+      interval: 10s
+      retries: 12
+    volumes:
+      - sql_data:/var/opt/mssql
+
+  minio:
+    image: minio/minio:latest
+    command: server /data
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadmin
+    ports:
+      - "9000:9000"
+    volumes:
+      - ./local_lakehouse:/data
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9000/minio/health/live || exit 1"]
+      interval: 10s
+      retries: 12
+
+  bootstrap:
+    image: python:3.11-slim
+    # Simple depends_on list; the bootstrap container will itself wait for services to be ready.
+    depends_on:
+      - sqlserver
+      - minio
+    working_dir: /app
+    volumes:
+      - ./scripts:/app/scripts:ro
+    environment:
+      SQL_HOST: sqlserver
+      SQL_PORT: "1433"
+      SQL_USER: sa
+      SQL_PASS: Your_Strong!Passw0rd
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    entrypoint: ["bash", "-lc"]
+    command: |
+      pip install pymssql boto3 && \
+      python /app/scripts/bootstrap_local.py
+
+  tester:
+    image: python:3.11-slim
+    volumes:
+      - ./:/app:rw
+    working_dir: /app
+    depends_on:
+      - sqlserver
+      - minio
+    entrypoint: ["bash", "-lc"]
+    # By default this service does nothing; use `docker compose run --rm tester '<cmd>'`
+    # The recommended command will install test deps from requirements-dev.txt and run integration tests
+    command: "pip install -r requirements-dev.txt && export RUN_INTEGRATION=1 && pytest -q tests/test_integration.py -k integration"
+
+volumes:
+  sql_data:
+  minio_data:
