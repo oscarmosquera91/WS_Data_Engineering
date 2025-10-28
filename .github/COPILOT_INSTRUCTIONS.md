@@ -36,6 +36,7 @@ Copilot debe asistir en la generación de código, documentación y buenas prác
 ```
 - Los ejemplos deben ser **compatibles con Notebooks de Fabric**.
 - No usar librerías que no estén soportadas por Fabric.
+- Priorizar las respuestas en español
 
 ---
 
